@@ -9,7 +9,8 @@ class OrgHost:
     HostName = None
     StatusProvider = None
 
-    def __init__(self, verbose=False, **kargs):
+    def __init__(self, status_provider=None, verbose=False, **kargs):
+        self.StatusProvider = status_provider or self.StatusProvider
         if self.StatusProvider is None:
             raise NotImplementedError()
 

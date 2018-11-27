@@ -17,19 +17,28 @@ def test_get_argument_parser():
 
 def test_generate_fetch_jobs():
     for host in get_all_supported_hosts():
-        assert next(
-            generate_fetch_jobs(
-                [f'{host.HostName}:coala'])) == (host, 'coala')
+        for provider in get_supported_status_providers():
+            assert next(
+                generate_fetch_jobs(
+                    [f'{provider.NAME}@{host.HostName}:coala'])) == (host,
+                                                                     provider,
+                                                                     'coala')
 
-        with pytest.raises(ValueError):
-            next(generate_fetch_jobs(['github:']))
+            with pytest.raises(ValueError):
+                next(generate_fetch_jobs(['github:']))
 
-        with pytest.raises(StopIteration):
-            next(generate_fetch_jobs([]))
+            with pytest.raises(ValueError):
+                next(generate_fetch_jobs(['travis@']))
+
+            with pytest.raises(ValueError):
+                next(generate_fetch_jobs(['travis@github:']))
+
+            with pytest.raises(StopIteration):
+                next(generate_fetch_jobs([]))
 
     # test passing in only organization name
     actual_fetch_jobs = set(generate_fetch_jobs(['templetonrobotics7190']))
-    expected_fetch_jobs = {(host, 'templetonrobotics7190') for host in
+    expected_fetch_jobs = {(host, None, 'templetonrobotics7190') for host in
                            get_all_supported_hosts()}
     assert expected_fetch_jobs == actual_fetch_jobs
 

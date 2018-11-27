@@ -1,6 +1,7 @@
 from os import environ, path
 from multiprocessing.dummy import Pool
 from argparse import ArgumentParser
+import re
 
 from termcolor import colored
 
@@ -22,24 +23,30 @@ def get_status_provider_statuses():
 
 
 def generate_fetch_jobs(org_strings):
+    org_pattern = '(:?(?P<provider>.*)@)?(:?(?P<host>.*):)?(?P<org>.*)'
+    org_regex = re.compile(org_pattern)
     for org_string in org_strings:
-        host, sym, org = org_string.strip().partition(':')
-        host = host.lower()
-
-        if sym == '':
-            host, org = '', host
+        org_match = org_regex.match(org_string)
+        provider = org_match.group('provider')
+        host = org_match.group('host')
+        org = org_match.group('org')
 
         if org == '':
             raise ValueError('org name invalid')
 
-        if host != '':
+        if provider:
+            for supported_provider in get_supported_status_providers():
+                if provider == supported_provider.NAME:
+                    provider = supported_provider
+
+        if host:
             for supported_host in get_all_supported_hosts():
                 if host == supported_host.HostName:
-                    yield (supported_host, org)
+                    yield (supported_host, provider, org)
                     raise StopIteration
         else:
             for available_host in get_all_supported_hosts():
-                yield (available_host, org)
+                yield (available_host, provider, org)
 
 
 def aggregate_org_status(org_host, threads=2):
@@ -78,7 +85,7 @@ def present_status(statuses, no_color):
 
 def get_argument_parser():
     parser = ArgumentParser()
-    parser.add_argument('orgs', nargs='*', help='host:org')
+    parser.add_argument('orgs', nargs='*', help='provider@host:org')
     parser.add_argument('--threads', type=int, default=2)
     parser.add_argument('--no-color', action='store_true')
     parser.add_argument('--verbose', '-v', action='store_true')
@@ -148,7 +155,7 @@ def main():
 
     all_repositories = []
 
-    for Host, org in generate_fetch_jobs(args.orgs):
+    for Host, provider, org in generate_fetch_jobs(args.orgs):
         token = None
 
         if not args.skip_host_checks:
@@ -189,7 +196,8 @@ def main():
 
             raise exp
 
-        org_host = Host(token, org, verbose=args.verbose)
+        org_host = Host(token, org, status_provider=provider,
+                        verbose=args.verbose)
 
         if args.export_repos:
             all_repositories += org_host.repositories
